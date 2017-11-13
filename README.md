@@ -5,9 +5,9 @@ NW.js port for ARM
 
 
 ## Versions
-NW.js version: v0.26.3 
+NW.js version: v0.26.5 
 
-Chromium 62 + Node 9.0.0
+Chromium 62 + Node 9.1.0
 
 
 ## Tested on
@@ -39,7 +39,7 @@ export PATH=$PATH:/path/to/depot_tools
 mkdir -p $HOME/nwjs
 export NWJS=$HOME/nwjs
 cd $NWJS
-gclient config --name=src https://github.com/nwjs/chromium.src.git@origin/nw-v0.26.3
+gclient config --name=src https://github.com/nwjs/chromium.src.git@origin/nw-v0.26.5
 ```
 
 Put `NWJS` environment variable in your ~/.bashrc or ~/.zshrc.
@@ -75,11 +75,11 @@ git clone https://github.com/nwjs/nw.js $NWJS/src/content/nw
 git clone https://github.com/nwjs/node $NWJS/src/third_party/node-nw
 git clone https://github.com/nwjs/v8 $NWJS/src/v8
 cd $NWJS/src/content/nw
-git checkout nw-v0.26.3
+git checkout nw-v0.26.5
 cd $NWJS/src/third_party/node-nw
-git checkout nw-v0.26.3
+git checkout nw-v0.26.5
 cd $NWJS/src/v8
-git checkout nw-v0.26.3
+git checkout nw-v0.26.5
 ```
 
 **Step 3.** Export cross-compilation environment variables and synchronize the projects. To enable proprietary codecs set `ffmpeg_branding` to `Chrome` when you configure GN!
