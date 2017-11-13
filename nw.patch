@@ -1,0 +1,191 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index d65b574..b10363e 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -331,7 +331,11 @@ if (is_mac && !is_component_build) {
+ }
+ 
+ if (is_linux && !is_component_build) {
+-  linux_strip_binary = 1
++  if (target_cpu == "arm") {
++    linux_strip_binary = "arm-linux-gnueabihf-strip"
++  } else {
++    linux_strip_binary = "strip"
++  }
+   arch_pkgname = target_cpu
+   if (target_cpu == "x86") {
+     arch_pkgname = "ia32"
+@@ -344,9 +348,11 @@ if (is_linux && !is_component_build) {
+                 "$root_shlib_dir/libffmpeg.so",
+                 "$root_build_dir/chromedriver",
+                 "$root_build_dir/nwjc",
+-                "$root_build_dir/swiftshader/libEGL.so",
+-                "$root_build_dir/swiftshader/libGLESv2.so",
+                 "$root_build_dir/payload"]
++    if (target_cpu != "arm") {
++        sources += [ "$root_build_dir/swiftshader/libEGL.so",
++                     "$root_build_dir/swiftshader/libGLESv2.so" ]
++    }
+     deps = [
+              "//chrome:chrome_initial",
+              "//chrome:main_dll",
+@@ -354,10 +360,12 @@ if (is_linux && !is_component_build) {
+              ":payload",
+              "//v8:nwjc",
+              "//chrome/test/chromedriver:chromedriver",
+-             "//third_party/ffmpeg:ffmpeg",
+-             "//third_party/swiftshader/src/OpenGL/libEGL:swiftshader_libEGL",
+-             "//third_party/swiftshader/src/OpenGL/libGLESv2:swiftshader_libGLESv2"
++             "//third_party/ffmpeg:ffmpeg"
+              ]
++    if (target_cpu != "arm") {
++      deps += [ "//third_party/swiftshader/src/OpenGL/libEGL:swiftshader_libEGL",
++                "//third_party/swiftshader/src/OpenGL/libGLESv2:swiftshader_libGLESv2" ]
++    }
+     if (target_cpu == "x64") {
+       inputs = [
+         "$root_build_dir/dump_syms",
+diff --git a/nw.gypi b/nw.gypi
+index 35776af..93f2c9c 100644
+--- a/nw.gypi
++++ b/nw.gypi
+@@ -288,9 +288,17 @@
+           ],
+         }],
+         ['OS=="linux"', {
+-          'variables': {
+-            'linux_strip_binary': 1,
+-          },
++          'conditions': [
++            ['target_arch=="arm"', {
++              'variables': {
++                'linux_strip_binary': 'arm-linux-gnueabihf-strip',
++              },
++            }, {
++              'variables': {
++                'linux_strip_binary': 'strip',
++              },
++            }],
++          ],
+           'actions': [
+             {
+               'action_name': 'dump_symbol_and_strip',
+@@ -346,19 +354,45 @@
+               'message': 'Dumping breakpad symbols to <(_outputs)',
+               'process_outputs_as_sources': 1,
+             },
++            {
++              'action_name': 'dump_symbol_and_strip_4',
++              'inputs': [
++                '<(DEPTH)/content/nw/tools/dump_app_syms',
++                '<(PRODUCT_DIR)/dump_syms',
++                '<(PRODUCT_DIR)/lib/libffmpeg.so',
++              ],
++              'outputs': [
++                '<(PRODUCT_DIR)/ffmpeg.so.breakpad.<(target_arch)',
++              ],
++              'action': ['<(DEPTH)/content/nw/tools/dump_app_syms',
++                         '<(PRODUCT_DIR)/dump_syms',
++                         '<(linux_strip_binary)',
++                         '<(PRODUCT_DIR)/lib/libffmpeg.so',
++                         '<@(_outputs)'],
++              'message': 'Dumping breakpad symbols to <(_outputs)',
++              'process_outputs_as_sources': 1,
++            },
+           ],
+           'dependencies': [
+             'nwjs',
+-            '../breakpad/breakpad.gyp:dump_syms',
++            '../breakpad/breakpad.gyp:dump_syms#host',
+           ],
+         }],
+         ['OS=="linux" and disable_nacl==0', {
+-          'variables': {
+-            'linux_strip_binary': 1,
+-          },
++          'conditions': [
++             ['target_arch=="arm"', {
++               'variables': {
++                 'linux_strip_binary': 'arm-linux-gnueabihf-strip',
++                },
++             }, {
++               'variables': {
++                 'linux_strip_binary': 'strip',
++               },
++            }],
++          ],
+           'actions': [
+             {
+-              'action_name': 'dump_symbol_and_strip_4',
++              'action_name': 'dump_symbol_and_strip_5',
+               'inputs': [
+                 '<(DEPTH)/content/nw/tools/dump_app_syms',
+                 '<(PRODUCT_DIR)/dump_syms',
+@@ -386,6 +420,17 @@
+         ['OS=="linux"', {
+           'actions': [
+             {
++              'conditions': [
++                ['target_arch=="arm"', {
++                  'variables': {
++                    'linux_strip_binary': 'arm-linux-gnueabihf-strip',
++                  },
++                }, {
++                  'variables': {
++                    'linux_strip_binary': 'strip',
++                  },
++                }],
++              ],
+               'action_name': 'strip_nw_binaries',
+               'inputs': [
+                 '<(PRODUCT_DIR)/chromedriver',
+@@ -395,7 +440,7 @@
+               'outputs': [
+                 '<(PRODUCT_DIR)/strip_binaries.stamp',
+               ],
+-              'action': ['strip',
++              'action': ['<(linux_strip_binary)',
+                          '<@(_inputs)'],
+               'message': 'Stripping release binaries',
+             },
+diff --git a/tools/dump_app_syms b/tools/dump_app_syms
+index 5cd7763..9cc43d5 100755
+--- a/tools/dump_app_syms
++++ b/tools/dump_app_syms
+@@ -34,7 +34,7 @@ echo "bb"
+ fi
+ 
+ if [ "$STRIP_BINARY" != "0" ]; then
+-  strip "$INFILE"
++  "$STRIP_BINARY" "$INFILE"
+ # To avoid dumpping twice.
+ echo "aa"
+   touch "$OUTFILE"
+diff --git a/tools/package_binaries.py b/tools/package_binaries.py
+index f321e29..82914f7 100755
+--- a/tools/package_binaries.py
++++ b/tools/package_binaries.py
+@@ -161,10 +161,11 @@ def generate_target_nw(platform_name, arch, version):
+                            'natives_blob.bin',
+                            'lib/libnw.so',
+                            'lib/libnode.so',
+-                           'lib/libffmpeg.so',
+-                           'swiftshader/libEGL.so',
+-                           'swiftshader/libGLESv2.so'
++                           'lib/libffmpeg.so'
+                            ]
++        if arch != 'arm':
++            target['input'].append('swiftshader/libEGL.so')
++            target['input'].append('swiftshader/libGLESv2.so')
+         if flavor == 'sdk':
+             target['input'].append('nwjc')
+             target['input'].append('payload')
+@@ -174,6 +175,8 @@ def generate_target_nw(platform_name, arch, version):
+             target['input'] += ['nacl_helper', 'nacl_helper_bootstrap', 'pnacl']
+             if arch == 'x64':
+                 target['input'].append('nacl_irt_x86_64.nexe')
++            elif arch == 'arm':
++                target['input'].append('nacl_irt_arm.nexe')
+             else:
+                 target['input'].append('nacl_irt_x86_32.nexe')
+             
